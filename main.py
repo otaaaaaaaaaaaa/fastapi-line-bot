@@ -14,17 +14,24 @@ from config import OPENAI_API_KEY
 from openai import OpenAI
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-
 @app.post("/callback")
 async def callback(request: Request):
     body = await request.body()
     signature = request.headers.get("X-Line-Signature")
-
     events = parser.parse(body.decode(), signature)
 
     for event in events:
-        if isinstance(event, MessageEvent) and isinstance(event.message, TextMessage):
-            reply_text = f"やっほー！『{event.message.text}』って送った？"
+        if isinstance(event, MessageEvent):
+
+            ai_response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "あなたは央多のように、短く要点を押さえつつ、丁寧でカジュアルな口調で返事するLINEボットです。"},
+                    {"role": "user", "content": event.message.text}
+                ]
+            )
+
+            reply_text = ai_response.choices[0].message["content"]
 
             line_bot_api.reply_message(
                 event.reply_token,
