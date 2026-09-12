@@ -10,6 +10,11 @@ CHANNEL_SECRET = "ef1635f70c6c5541b4cec5e2e2320913"
 line_bot_api = LineBotApi(CHANNEL_ACCESS_TOKEN)
 parser = WebhookParser(CHANNEL_SECRET)
 
+from config import OPENAI_API_KEY
+from openai import OpenAI
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+
 @app.post("/callback")
 async def callback(request: Request):
     body = await request.body()
