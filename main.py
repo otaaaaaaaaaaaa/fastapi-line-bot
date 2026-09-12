@@ -32,12 +32,20 @@ async def callback(request: Request):
             if isinstance(event, MessageEvent) and isinstance(event.message, TextMessage):
                 user_text = event.message.text
 
-                response = client.models.generate_content(
-                    model="gemini-3.6-flash",
-                    contents=f"あなたは親切で短く答えるアシスタントです。次のメッセージに日本語で返信してください。{user_text}"
-                )
+                try:
+                    response = client.models.generate_content(
+                        model="gemini-3.6-flash",
+                        contents=f"あなたは親切で短く答えるアシスタントです。次のメッセージに日本語で返信してください。{user_text}"
+                    )
+                    reply_text = response.text
 
-                reply_text = response.text
+                except Exception as e:
+                    error_text = str(e)
+
+                    if "RESOURCE_EXHAUSTED" in error_text or "429" in error_text:
+                        reply_text = "無料枠の上限を超えたゾ。時間をおいてもう一度試してくれ。"
+                    else:
+                        reply_text = "返信でエラーが出たゾ。少し時間をおいてもう一度試してくれ。"
 
                 line_bot_api.reply_message(
                     event.reply_token,
