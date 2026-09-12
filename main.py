@@ -15,6 +15,27 @@ parser = WebhookParser(CHANNEL_SECRET)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 
+def make_error_reply(error_text):
+    text = error_text.lower()
+
+    if "resource_exhausted" in text or "quota exceeded" in text or "429" in text:
+        return "いま無料枠の上限を超えたゾ。少し待ってからまた送ってくれ。"
+
+    if "401" in text or "authentication failed" in text or "invalid token" in text:
+        return "認証エラーだゾ。LINEかAPIのトークン設定を確認してくれ。"
+
+    if "503" in text or "unavailable" in text:
+        return "いまサービスが混み合っているゾ。少し待ってからまた送ってくれ。"
+
+    if "404" in text and "model" in text:
+        return "モデル設定エラーだゾ。使うモデル名を見直してくれ。"
+
+    if "400" in text or "bad request" in text:
+        return "送信内容の形式でエラーが出たゾ。入力や設定を見直してくれ。"
+
+    return f"エラーが出たゾ。内容はこれだゾ。{error_text[:120]}"
+
+
 @app.get("/")
 def root():
     return {"message": "ok"}
@@ -41,11 +62,8 @@ async def callback(request: Request):
 
                 except Exception as e:
                     error_text = str(e)
-
-                    if "RESOURCE_EXHAUSTED" in error_text or "429" in error_text:
-                        reply_text = "無料枠の上限を超えたゾ。時間をおいてもう一度試してくれ。"
-                    else:
-                        reply_text = "返信でエラーが出たゾ。少し時間をおいてもう一度試してくれ。"
+                    print(f"gemini error: {error_text}")
+                    reply_text = make_error_reply(error_text)
 
                 line_bot_api.reply_message(
                     event.reply_token,
@@ -53,6 +71,6 @@ async def callback(request: Request):
                 )
 
     except Exception as e:
-        print(f"error: {e}")
+        print(f"callback error: {e}")
 
     return "OK"
