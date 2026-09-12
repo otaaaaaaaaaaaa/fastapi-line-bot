@@ -1,1 +1,3 @@
-OPENAI_API_KEY = "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”
+import os
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
