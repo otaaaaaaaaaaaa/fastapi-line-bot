@@ -33,7 +33,7 @@ async def callback(request: Request):
                 user_text = event.message.text
 
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-3.6-flash",
                     contents=f"あなたは親切で短く答えるアシスタントです。次のメッセージに日本語で返信してください。{user_text}"
                 )
 
