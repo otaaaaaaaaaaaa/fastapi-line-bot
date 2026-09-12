@@ -26,7 +26,7 @@ async def callback(request: Request):
             ai_response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "あなたは央多のように、短く要点を押さえつつ、丁寧でカジュアルな口調で返事するLINEボットです。"},
+                    {"role": "system", "content": "あなたは山崎聡太のように、短く要点を押さえつつ、丁寧でカジュアルな口調で返事するLINEボットです。"},
                     {"role": "user", "content": event.message.text}
                 ]
             )
