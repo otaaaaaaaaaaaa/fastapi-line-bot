@@ -51,10 +51,10 @@ def make_error_reply(error_text):
         return "認証エラーだゾ。APIキーやLINEトークンを確認してくれ。"
 
     if "503" in text or "unavailable" in text:
-        return "サービスが混み合っているゾ。少し待ってからまた送ってくれ。"
+        return "いまサービスが混み合っているゾ。少し待ってからまた送ってくれ。"
 
     if "404" in text and "model" in text:
-        return "モデル設定エラーだゾ。モデル名を見直してくれ。"
+        return "モデル設定エラーだゾ。使うモデル名を見直してくれ。"
 
     if "400" in text or "bad request" in text:
         return "送信内容の形式でエラーが出たゾ。入力や設定を見直してくれ。"
@@ -65,17 +65,26 @@ def make_error_reply(error_text):
 def ask_gemini(user_text):
     response = gemini_client.models.generate_content(
         model="gemini-3.6-flash",
-        contents=f"あなたは親切で短く答えるアシスタントです。次のメッセージに日本語で返信してください。{user_text}"
+        contents=f"あなたは親切で短く答えるアシスタントです。次のメッセージに日本語で短く返信してください。{user_text}"
     )
     return response.text
 
 
 def ask_groq(user_text):
-    response = groq_client.responses.create(
+    response = groq_client.chat.completions.create(
         model="llama-3.1-8b-instant",
-        input=f"あなたは親切で短く答えるアシスタントです。次のメッセージに日本語で返信してください。{user_text}"
+        messages=[
+            {
+                "role": "system",
+                "content": "あなたは親切で短く答えるアシスタントです。日本語で短く返信してください。"
+            },
+            {
+                "role": "user",
+                "content": user_text
+            }
+        ]
     )
-    return response.output_text
+    return response.choices[0].message.content
 
 
 @app.get("/")
