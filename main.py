@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, Request
 from linebot import LineBotApi, WebhookParser
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
-import google.generativeai as genai
+from google import genai
 
 app = FastAPI()
 
@@ -12,9 +12,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 line_bot_api = LineBotApi(CHANNEL_ACCESS_TOKEN)
 parser = WebhookParser(CHANNEL_SECRET)
-
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash-latest")
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 @app.get("/")
@@ -34,8 +32,11 @@ async def callback(request: Request):
             if isinstance(event, MessageEvent) and isinstance(event.message, TextMessage):
                 user_text = event.message.text
 
-                prompt = f"あなたは親切で短く答えるアシスタントです。次のメッセージに日本語で返信してください。{user_text}"
-                response = model.generate_content(prompt)
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=f"あなたは親切で短く答えるアシスタントです。次のメッセージに日本語で返信してください。{user_text}"
+                )
+
                 reply_text = response.text
 
                 line_bot_api.reply_message(
