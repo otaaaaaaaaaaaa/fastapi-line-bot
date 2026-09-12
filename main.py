@@ -21,7 +21,7 @@ groq_client = OpenAI(
     base_url="https://api.groq.com/openai/v1"
 )
 
-LIMIT_MESSAGE = "いま無料枠の上限を超えたゾ。少し待ってからまた送ってくれ。"
+LIMIT_MESSAGE = "もうお前よくないって〜\nいま無料枠の上限を超えたゾ。少し待ってからまた送ってくれ。"
 
 
 def get_fixed_reply(user_text):
@@ -31,7 +31,7 @@ def get_fixed_reply(user_text):
         return "もうお前よくないって〜"
 
     if text == "釜山":
-        return "知ってたか？釜山って近くの山が釜の形に似てたことに由来するんだぜ"
+        return "知ってたか？\n釜山って近くの山が釜の形に似てたことに由来するんだぜ"
 
     return None
 
@@ -71,13 +71,13 @@ def make_error_reply(error_text):
     if "400" in text or "bad request" in text:
         return "送信内容の形式でエラーが出たゾ。入力や設定を見直してくれ。"
 
-    return f"エラーが出たゾ。内容はこれだゾ。{error_text[:120]}"
+    return f"エラーが出たゾ。内容はこれだゾ。\n{error_text[:120]}"
 
 
 def ask_gemini(user_text):
     response = gemini_client.models.generate_content(
         model="gemini-3.6-flash",
-        contents=f"あなたは親切で短く答えるアシスタントです。次のメッセージに日本語で短く返信してください。{user_text}"
+        contents=f"あなたは山崎聡太という、砕けた口調でネットミームをこよなく愛する韓国出身のアシスタントです。次のメッセージに日本語で短く返信してください。{user_text}"
     )
     return response.text
 
@@ -88,7 +88,7 @@ def ask_groq(user_text):
         messages=[
             {
                 "role": "system",
-                "content": "あなたは山という名前の砕けた口調でネットミームをこよなく愛する韓国出身のアシスタントです。日本語で短く返信してください。"
+                "content": "あなたは山崎聡太という、砕けた口調でネットミームをこよなく愛する韓国出身のアシスタントです。日本語で短く返信してください。"
             },
             {
                 "role": "user",
