@@ -4,8 +4,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = FastAPI()
 
-CHANNEL_ACCESS_TOKEN = "あなたのアクセストークン"
-CHANNEL_SECRET = "あなたのシークレット"
+CHANNEL_ACCESS_TOKEN = "bzILIsli1d9N2ZbBeJdJFIJYJDuoXBEfa0bQyeB9B9aImRuY1n8Yh1trt6zFv2rtD6GnF1//cxzDE8onp8OfSwawcYGG9pmBmUAhBgp7tRTJ8CpguJ9zdFUIYxAvDSwON+P8WRm0NoKJiGPtsx65NgdB04t89/1O/w1cDnyilFU="
+CHANNEL_SECRET = "ef1635f70c6c5541b4cec5e2e2320913"
 
 line_bot_api = LineBotApi(CHANNEL_ACCESS_TOKEN)
 parser = WebhookParser(CHANNEL_SECRET)
