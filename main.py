@@ -1,7 +1,12 @@
 import os
 from fastapi import FastAPI, Request
 from linebot import LineBotApi, WebhookParser
-from linebot.models import MessageEvent, TextMessage, StickerMessage, TextSendMessage
+from linebot.models import (
+    MessageEvent,
+    TextMessage,
+    StickerMessage,
+    TextSendMessage
+)
 from google import genai
 from openai import OpenAI
 
@@ -187,6 +192,11 @@ async def callback(request: Request):
                 )
 
             elif isinstance(event, MessageEvent) and isinstance(event.message, StickerMessage):
+                package_id = event.message.package_id
+                sticker_id = event.message.sticker_id
+
+                print(f"sticker received: package_id={package_id}, sticker_id={sticker_id}")
+
                 line_bot_api.reply_message(
                     event.reply_token,
                     get_sticker_reply_messages()
