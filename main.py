@@ -5,7 +5,8 @@ from linebot.models import (
     MessageEvent,
     TextMessage,
     StickerMessage,
-    TextSendMessage
+    TextSendMessage,
+    StickerSendMessage
 )
 from google import genai
 from openai import OpenAI
@@ -62,9 +63,6 @@ CHARACTER_PROMPT = """あなたは「山」という男子高校生の口調で�
 
 def get_fixed_reply(user_text):
     text = user_text.strip()
-
-    if "くさい" in text or "臭い" in text:
-        return "もうお前よくないって〜"
 
     if text == "釜山":
         return "知ってたか？釜山って近くの山が釜の形に似てたことに由来するんだぜ"
@@ -158,7 +156,17 @@ async def callback(request: Request):
 
         for event in events:
             if isinstance(event, MessageEvent) and isinstance(event.message, TextMessage):
-                user_text = event.message.text
+                user_text = event.message.text.strip()
+
+                if "くさい" in user_text or "臭い" in user_text:
+                    line_bot_api.reply_message(
+                        event.reply_token,
+                        StickerSendMessage(
+                            package_id="30967961",
+                            sticker_id="779436724"
+                        )
+                    )
+                    continue
 
                 fixed_reply = get_fixed_reply(user_text)
                 if fixed_reply:
