@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI, Request
 from linebot import LineBotApi, WebhookParser
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from linebot.models import MessageEvent, TextMessage, StickerMessage, TextSendMessage
 from google import genai
 from openai import OpenAI
 
@@ -65,6 +65,14 @@ def get_fixed_reply(user_text):
         return "知ってたか？釜山って近くの山が釜の形に似てたことに由来するんだぜ"
 
     return None
+
+
+def get_sticker_reply_messages():
+    return [
+        TextSendMessage(text="https://line.me/S/sticker/30967961"),
+        TextSendMessage(text="https://line.me/S/sticker/32133711"),
+        TextSendMessage(text="これが俺のスタンプだ！")
+    ]
 
 
 def is_gemini_quota_error(error_text):
@@ -176,6 +184,12 @@ async def callback(request: Request):
                 line_bot_api.reply_message(
                     event.reply_token,
                     TextSendMessage(text=reply_text)
+                )
+
+            elif isinstance(event, MessageEvent) and isinstance(event.message, StickerMessage):
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    get_sticker_reply_messages()
                 )
 
     except Exception as e:
