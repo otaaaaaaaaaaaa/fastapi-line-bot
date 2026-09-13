@@ -113,7 +113,10 @@ def make_error_reply(error_text):
     if "400" in text or "bad request" in text:
         return "送信内容の形式でエラーが出たゾ。入力や設定を見直してくれ。"
 
-    return f"エラーが出たゾ。内容はこれだゾ。{error_text[:120]}"
+    return [
+        TextSendMessage(text="エラーが出たゾ。内容はこれだゾ。"),
+        TextSendMessage(text="{error_text[:120]}")
+    ]
 
 
 def ask_gemini(user_text):
