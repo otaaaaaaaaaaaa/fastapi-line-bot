@@ -1,8 +1,8 @@
 import os
-import base64
 
 from fastapi import FastAPI, Request
 from linebot import LineBotApi, WebhookParser
+from linebot.exceptions import InvalidSignatureError, LineBotApiError
 from linebot.models import (
     MessageEvent,
     TextMessage,
@@ -11,6 +11,7 @@ from linebot.models import (
     TextSendMessage,
 )
 from google import genai
+from google.genai import types
 from openai import OpenAI
 
 app = FastAPI()
@@ -32,53 +33,20 @@ groq_client = OpenAI(
 LIMIT_MESSAGE = "いま無料枠の上限を超えたゾ。少し待ってからまた送ってくれ。"
 
 TEXT_CHARACTER_PROMPT = """あなたは「山」という男子高校生の口調で返答するLINEボットです。
-
-【基本】
-- 返答は短文
-- フランク
-- 省エネ
-- 長文にしない
-
-◆ツッコミ・ボケ
-- ユーザーのボケには軽くツッコむ
-- ミーム・ネタ・地元ネタ・部活ネタを拾って返す
-- 冗談には冗談で返すが、やりすぎない
-
-
-【雰囲気】
-- 軽くツッコむ
-- 冗談には軽く返す
-- 相談には最低限答える
-- 丁寧語になりすぎない
-
-◆照れ隠し
-- 褒められたり祝われたりしたら軽く否定する
-
-◆相談対応
-- 相談には必要最低限で答える
-- ただし冷たくはせず、仲間意識は見せる
-
-【禁止】
-- 長すぎる返答
-- 説明しすぎ
+返答は短文で、フランクで、省エネ気味にしてください。
+長文にしないでください。
+軽くツッコむ感じはOKです。
+説明しすぎないでください。
 """
 
 IMAGE_CHARACTER_PROMPT = """あなたは「山」という男子高校生の口調で返答するLINEボットです。
-
-【返答ルール】
-- 返答は自然な一言だけ
-- 20文字以内
-- 説明や要約はしない
-- まず画像内の文字を確認する
-- 画像内に「くさい」「臭い」「くさっ」「臭っ」「931」のどれかがあれば、
-  必ず「もうお前よくないって〜」だけを返す
-- それ以外は画像全体を見て自然な一言を返す
-
-【例】
-- 犬なら「かわいいな」
-- 飯なら「うまそうだな」
-- 風景なら「いい景色だな」
-- ネタ画像なら「なんだこれ草」
+返答は自然な一言だけにしてください。
+20文字以内にしてください。
+説明や要約はしないでください。
+まず画像内の文字を確認してください。
+画像内に「くさい」「臭い」「くさっ」「臭っ」のどれかがあれば、
+必ず「もうお前よくないって〜」だけを返してください。
+それ以外は画像全体を見て自然な一言を返してください。
 """
 
 
@@ -122,19 +90,19 @@ def is_groq_quota_error(error_text):
 def make_error_reply(error_text):
     text = error_text.lower()
 
-    if "401" in text or "authentication failed" in text or "invalid token" in text:
-        return "認証エラーだゾ。APIキーやLINEトークンを確認してくれ。"
+    if "401" in text or "authentication" in text or "invalid token" in text:
+        return "認証エラーだゾ。設定を見直してくれ。"
 
     if "503" in text or "unavailable" in text:
-        return "いまサービスが混み合っているゾ。少し待ってからまた送ってくれ。"
+        return "いま混んでるゾ。少し待ってくれ。"
 
     if "404" in text and "model" in text:
-        return "モデル設定エラーだゾ。使うモデル名を見直してくれ。"
+        return "モデル設定が変だゾ。見直してくれ。"
 
     if "400" in text or "bad request" in text:
-        return "送信内容の形式でエラーが出たゾ。入力や設定を見直してくれ。"
+        return "リクエスト形式でエラーだゾ。設定を見直してくれ。"
 
-    return f"エラーが出たゾ。内容はこれだゾ。{error_text[:120]}"
+    return f"エラーが出たゾ。{error_text[:100]}"
 
 
 def ask_gemini_text(user_text):
@@ -142,10 +110,14 @@ def ask_gemini_text(user_text):
         raise Exception("Gemini APIキーが未設定だゾ")
 
     response = gemini_client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=f"{TEXT_CHARACTER_PROMPT}\n\nユーザーのメッセージ: {user_text}"
+        model="gemini-2.5-flash",
+        contents=[
+            TEXT_CHARACTER_PROMPT,
+            f"ユーザーのメッセージ: {user_text}"
+        ]
     )
-    return response.text.strip()
+
+    return (response.text or "").strip()
 
 
 def ask_groq_text(user_text):
@@ -159,32 +131,36 @@ def ask_groq_text(user_text):
             {"role": "user", "content": user_text}
         ]
     )
+
     return response.choices[0].message.content.strip()
 
 
-def ask_gemini_image(image_bytes):
+def ask_gemini_image(image_bytes, mime_type):
     if not gemini_client:
         raise Exception("Gemini APIキーが未設定だゾ")
 
-    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+    image_part = types.Part.from_bytes(
+        data=image_bytes,
+        mime_type=mime_type
+    )
 
     response = gemini_client.models.generate_content(
-        model="gemini-3.6-flash",
+        model="gemini-2.5-flash",
         contents=[
             IMAGE_CHARACTER_PROMPT,
-            {
-                "mime_type": "image/jpeg",
-                "data": image_base64
-            }
+            "この画像に対して自然な一言だけ返してくれ。",
+            image_part
         ]
     )
-    return response.text.strip()
+
+    return (response.text or "").strip()
 
 
-def ask_groq_image(image_bytes):
+def ask_groq_image(image_bytes, mime_type):
     if not groq_client:
         raise Exception("Groq APIキーが未設定だゾ")
 
+    import base64
     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
     response = groq_client.chat.completions.create(
@@ -204,13 +180,14 @@ def ask_groq_image(image_bytes):
                     {
                         "type": "image_url",
                         "image_url": {
-                            "url": f"data:image/jpeg;base64,{image_base64}"
+                            "url": f"data:{mime_type};base64,{image_base64}"
                         }
                     }
                 ]
             }
         ]
     )
+
     return response.choices[0].message.content.strip()
 
 
@@ -230,14 +207,15 @@ def generate_text_reply(user_text):
 
                 if is_groq_quota_error(groq_error_text):
                     return LIMIT_MESSAGE
+
                 return make_error_reply(groq_error_text)
 
         return make_error_reply(gemini_error_text)
 
 
-def generate_image_reply(image_bytes):
+def generate_image_reply(image_bytes, mime_type):
     try:
-        reply_text = ask_gemini_image(image_bytes)
+        reply_text = ask_gemini_image(image_bytes, mime_type)
         if reply_text:
             return reply_text
     except Exception as gemini_error:
@@ -246,7 +224,7 @@ def generate_image_reply(image_bytes):
 
         if is_gemini_quota_error(gemini_error_text):
             try:
-                reply_text = ask_groq_image(image_bytes)
+                reply_text = ask_groq_image(image_bytes, mime_type)
                 if reply_text:
                     return reply_text
             except Exception as groq_error:
@@ -255,7 +233,6 @@ def generate_image_reply(image_bytes):
 
                 if is_groq_quota_error(groq_error_text):
                     return LIMIT_MESSAGE
-                return "画像うまく見れなかったわ"
 
         return "画像うまく見れなかったわ"
 
@@ -270,12 +247,18 @@ def root():
 @app.post("/callback")
 async def callback(request: Request):
     body = await request.body()
-    signature = request.headers.get("X-Line-Signature")
+    signature = request.headers.get("X-Line-Signature", "")
 
     try:
         events = parser.parse(body.decode("utf-8"), signature)
+    except InvalidSignatureError:
+        return {"status": "invalid signature"}
+    except Exception as e:
+        print(f"parse error: {e}")
+        return {"status": "parse error"}
 
-        for event in events:
+    for event in events:
+        try:
             if isinstance(event, MessageEvent) and isinstance(event.message, TextMessage):
                 user_text = event.message.text.strip()
 
@@ -285,17 +268,13 @@ async def callback(request: Request):
                     or "くさっ" in user_text
                     or "臭っ" in user_text
                 ):
-                    line_bot_api.reply_message(
-                        event.reply_token,
-                        TextSendMessage(text="もうお前よくないって〜")
-                    )
-                    continue
-
-                fixed_reply = get_fixed_reply(user_text)
-                if fixed_reply:
-                    reply_text = fixed_reply
+                    reply_text = "もうお前よくないって〜"
                 else:
-                    reply_text = generate_text_reply(user_text)
+                    fixed_reply = get_fixed_reply(user_text)
+                    if fixed_reply:
+                        reply_text = fixed_reply
+                    else:
+                        reply_text = generate_text_reply(user_text)
 
                 line_bot_api.reply_message(
                     event.reply_token,
@@ -303,13 +282,17 @@ async def callback(request: Request):
                 )
 
             elif isinstance(event, MessageEvent) and isinstance(event.message, ImageMessage):
+                message_content = line_bot_api.get_message_content(event.message.id)
+                image_bytes = b"".join(chunk for chunk in message_content.iter_content())
+
+                mime_type = "image/jpeg"
                 try:
-                    message_content = line_bot_api.get_message_content(event.message.id)
-                    image_bytes = b"".join(chunk for chunk in message_content.iter_content())
-                    reply_text = generate_image_reply(image_bytes)
-                except Exception as image_error:
-                    print(f"image fetch error: {image_error}")
-                    reply_text = "すまん画像うまく見れなかったわ"
+                    if hasattr(message_content, "response") and message_content.response:
+                        mime_type = message_content.response.headers.get("Content-Type", "image/jpeg")
+                except Exception as mime_error:
+                    print(f"mime detect error: {mime_error}")
+
+                reply_text = generate_image_reply(image_bytes, mime_type)
 
                 line_bot_api.reply_message(
                     event.reply_token,
@@ -327,7 +310,16 @@ async def callback(request: Request):
                     get_sticker_reply_messages()
                 )
 
-    except Exception as e:
-        print(f"callback error: {e}")
+        except LineBotApiError as e:
+            print(f"line api error: {e}")
+        except Exception as e:
+            print(f"callback event error: {e}")
+            try:
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text="なんかエラー出たわ")
+                )
+            except Exception as reply_error:
+                print(f"reply fallback error: {reply_error}")
 
     return "OK"
