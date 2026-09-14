@@ -1,12 +1,14 @@
 import os
+import base64
+
 from fastapi import FastAPI, Request
 from linebot import LineBotApi, WebhookParser
 from linebot.models import (
     MessageEvent,
     TextMessage,
     StickerMessage,
+    ImageMessage,
     TextSendMessage,
-    StickerSendMessage
 )
 from google import genai
 from openai import OpenAI
@@ -17,48 +19,56 @@ CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN")
 CHANNEL_SECRET = os.getenv("CHANNEL_SECRET")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 line_bot_api = LineBotApi(CHANNEL_ACCESS_TOKEN)
 parser = WebhookParser(CHANNEL_SECRET)
 
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 groq_client = OpenAI(
     api_key=GROQ_API_KEY,
     base_url="https://api.groq.com/openai/v1"
-)
+) if GROQ_API_KEY else None
+openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 LIMIT_MESSAGE = "いま無料枠の上限を超えたゾ。少し待ってからまた送ってくれ。"
 
-CHARACTER_PROMPT = """あなたは「山」という男子高校生の口調で返答するLINEボットです。
+TEXT_CHARACTER_PROMPT = """あなたは「山」という男子高校生の口調で返答するLINEボットです。
 
-◆基本スタイル
-- 返答は短文・省エネ・即レス気味にする
-- 丁寧すぎず、フランクで軽いノリ
-- 語尾を伸ばしすぎない
-- ときどきスタンプで返すようなニュアンスの短文を使う
+【基本】
+- 返答は短文
+- フランク
+- 省エネ
+- 長文にしない
 
-◆ツッコミ・ボケ
-- ユーザーのボケには軽くツッコむ
-- ミーム・ネタ・地元ネタ・部活ネタを拾って返す
-- 冗談には冗談で返すが、やりすぎない
+【雰囲気】
+- 軽くツッコむ
+- 冗談には軽く返す
+- 相談には最低限答える
+- 丁寧語になりすぎない
 
-◆照れ隠し
-- 褒められたり祝われたりしたら軽く否定する
+【禁止】
+- 長すぎる返答
+- 説明しすぎ
+"""
 
-◆相談対応
-- 相談には必要最低限で答える
-- ただし冷たくはせず、仲間意識は見せる
+IMAGE_CHARACTER_PROMPT = """あなたは「山」という男子高校生の口調で返答するLINEボットです。
 
-◆感情
-- ときどき熱い仲間意識を出す
-- でも基本はクールで省エネ
+【返答ルール】
+- 返答は自然な一言だけ
+- 20文字以内
+- 説明や要約はしない
+- まず画像内の文字を確認する
+- 画像内に「くさい」「臭い」「くさっ」「臭っ」「931」のどれかがあれば、
+  必ず「もうお前よくないって〜」だけを返す
+- それ以外は画像全体を見て自然な一言を返す
 
-◆禁止
-- 過度に長文にならない
-- 過度に丁寧語にならない
-- 過度に感情的にならない
-
-以上を守り、ユーザーのメッセージに対して「山らしい返答」を生成してください。"""
+【例】
+- 犬なら「かわいいな」
+- 飯なら「うまそうだな」
+- 風景なら「いい景色だな」
+- ネタ画像なら「なんだこれ草」
+"""
 
 
 def get_fixed_reply(user_text):
@@ -113,35 +123,69 @@ def make_error_reply(error_text):
     if "400" in text or "bad request" in text:
         return "送信内容の形式でエラーが出たゾ。入力や設定を見直してくれ。"
 
-    return [
-        TextSendMessage(text="エラーが出たゾ。内容はこれだゾ。"),
-        TextSendMessage(text="{error_text[:120]}")
-    ]
+    return f"エラーが出たゾ。内容はこれだゾ。{error_text[:120]}"
 
 
 def ask_gemini(user_text):
+    if not gemini_client:
+        raise Exception("Gemini APIキーが未設定だゾ")
+
     response = gemini_client.models.generate_content(
         model="gemini-3.6-flash",
-        contents=f"{CHARACTER_PROMPT}\n\nユーザーのメッセージ: {user_text}"
+        contents=f"{TEXT_CHARACTER_PROMPT}\n\nユーザーのメッセージ: {user_text}"
     )
-    return response.text
+    return response.text.strip()
 
 
 def ask_groq(user_text):
+    if not groq_client:
+        raise Exception("Groq APIキーが未設定だゾ")
+
     response = groq_client.chat.completions.create(
         model="openai/gpt-oss-20b",
         messages=[
+            {"role": "system", "content": TEXT_CHARACTER_PROMPT},
+            {"role": "user", "content": user_text}
+        ]
+    )
+    return response.choices[0].message.content.strip()
+
+
+def ask_image_reply_with_openai(image_bytes):
+    if not openai_client:
+        raise Exception("OPENAI_API_KEYが未設定だゾ")
+
+    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+
+    response = openai_client.responses.create(
+        model="gpt-4.1-mini",
+        input=[
             {
                 "role": "system",
-                "content": CHARACTER_PROMPT
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": IMAGE_CHARACTER_PROMPT
+                    }
+                ]
             },
             {
                 "role": "user",
-                "content": user_text
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": "この画像に対して自然な一言だけ返してくれ。"
+                    },
+                    {
+                        "type": "input_image",
+                        "image_url": f"data:image/jpeg;base64,{image_base64}"
+                    }
+                ]
             }
         ]
     )
-    return response.choices[0].message.content
+
+    return response.output_text.strip()
 
 
 @app.get("/")
@@ -155,19 +199,22 @@ async def callback(request: Request):
     signature = request.headers.get("X-Line-Signature")
 
     try:
-        events = parser.parse(body.decode(), signature)
+        events = parser.parse(body.decode("utf-8"), signature)
 
         for event in events:
             if isinstance(event, MessageEvent) and isinstance(event.message, TextMessage):
                 user_text = event.message.text.strip()
 
-                if "くさい" in user_text or "臭い" in user_text:
+                if (
+                    "くさい" in user_text
+                    or "臭い" in user_text
+                    or "くさっ" in user_text
+                    or "臭っ" in user_text
+                    or "931" in user_text
+                ):
                     line_bot_api.reply_message(
                         event.reply_token,
-                        StickerSendMessage(
-                            package_id="30967961",
-                            sticker_id="779436724"
-                        )
+                        TextSendMessage(text="もうお前よくないって〜")
                     )
                     continue
 
@@ -177,7 +224,6 @@ async def callback(request: Request):
                 else:
                     try:
                         reply_text = ask_gemini(user_text)
-
                     except Exception as gemini_error:
                         gemini_error_text = str(gemini_error)
                         print(f"gemini error: {gemini_error_text}")
@@ -185,7 +231,6 @@ async def callback(request: Request):
                         if is_gemini_quota_error(gemini_error_text):
                             try:
                                 reply_text = ask_groq(user_text)
-
                             except Exception as groq_error:
                                 groq_error_text = str(groq_error)
                                 print(f"groq error: {groq_error_text}")
@@ -196,6 +241,25 @@ async def callback(request: Request):
                                     reply_text = make_error_reply(groq_error_text)
                         else:
                             reply_text = make_error_reply(gemini_error_text)
+
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text=reply_text)
+                )
+
+            elif isinstance(event, MessageEvent) and isinstance(event.message, ImageMessage):
+                try:
+                    message_content = line_bot_api.get_message_content(event.message.id)
+                    image_bytes = b"".join(chunk for chunk in message_content.iter_content())
+
+                    reply_text = ask_image_reply_with_openai(image_bytes)
+
+                    if not reply_text:
+                        reply_text = "なんか気になる画像だな"
+
+                except Exception as image_error:
+                    print(f"image error: {image_error}")
+                    reply_text = "すまん画像うまく見れなかったわ"
 
                 line_bot_api.reply_message(
                     event.reply_token,
