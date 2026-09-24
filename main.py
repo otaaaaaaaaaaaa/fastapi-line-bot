@@ -82,7 +82,7 @@ def ask_gemini_image(image_bytes, mime_type):
     )
 
     response = gemini_client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.6-flash",
         contents=[
             IMAGE_CHARACTER_PROMPT,
             "この画像に対して自然な一言だけ返してくれ。",
