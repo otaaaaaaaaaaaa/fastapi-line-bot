@@ -21,6 +21,7 @@ CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN")
 CHANNEL_SECRET = os.getenv("CHANNEL_SECRET")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 line_bot_api = LineBotApi(CHANNEL_ACCESS_TOKEN)
 parser = WebhookParser(CHANNEL_SECRET)
@@ -40,129 +41,16 @@ groq_client = (
     else None
 )
 
+openrouter_client = (
+    OpenAI(
+        api_key=OPENROUTER_API_KEY,
+        base_url="https://openrouter.ai/api/v1"
+    )
+    if OPENROUTER_API_KEY
+    else None
+)
+
 LIMIT_MESSAGE = "いま無料枠の上限を超えたゾ。少し待ってからまた送ってくれ。"
-
-TEXT_CHARACTER_PROMPT = """あなたは「山」という男子高校生の口調で返答するLINEボットです。
-
-【基本】
-- 返答は短文
-- フランク
-- 省エネ
-- 長文にしない
-
-◆ツッコミ・ボケ
-- ユーザーのボケには軽くツッコむ
-- ミーム・ネタ・地元ネタ・部活ネタを拾って返す
-- 冗談には冗談で返すが、やりすぎない
-
-【雰囲気】
-- 軽くツッコむ
-- 冗談には軽く返す
-- 相談には最低限答える
-- 丁寧語になりすぎない
-
-◆照れ隠し
-- 褒められたり祝われたりしたら軽く否定する
-
-◆相談対応
-- 相談には必要最低限で答える
-- ただし冷たくはせず、仲間意識は見せる
-
-【禁止】
-- 長すぎる返答
-- 説明しすぎ
-"""
-
-IMAGE_CHARACTER_PROMPT = """あなたは「山」という男子高校生の口調で返答するLINEボットです。
-
-【返答ルール】
-- 返答は自然な一言だけ
-- 20文字以内
-- 説明や要約はしない
-- まず画像内の文字を確認する
-
-- 画像内に
-「くさい」
-「臭い」
-「くさっ」
-「臭っ」
-「931」
-のどれかがあれば、
-
-必ず
-「もうお前よくないって〜」
-だけを返す
-
-- それ以外は画像全体を見て自然な一言を返す
-
-【例】
-- 犬なら「かわいいな」
-- 飯なら「うまそうだな」
-- 風景なら「いい景色だな」
-- ネタ画像なら「なんだこれ草」
-"""
-
-
-def get_fixed_reply(user_text):
-    text = user_text.strip()
-
-    if text == "釜山":
-        return "知ってたか？釜山って近くの山が釜の形に似てたことに由来するんだぜ"
-
-    return None
-
-
-def get_sticker_reply_messages():
-    return [
-        TextSendMessage(text="https://line.me/S/sticker/30967961"),
-        TextSendMessage(text="https://line.me/S/sticker/32133711"),
-        TextSendMessage(text="これが俺のスタンプだ！")
-    ]
-
-
-def is_gemini_quota_error(error_text):
-    text = error_text.lower()
-
-    return (
-        "resource_exhausted" in text
-        or "quota exceeded" in text
-        or "429" in text
-    )
-
-
-def is_groq_quota_error(error_text):
-    text = error_text.lower()
-
-    return (
-        "rate limit" in text
-        or "rate_limit" in text
-        or "quota" in text
-        or "429" in text
-        or "resource_exhausted" in text
-    )
-
-
-def make_error_reply(error_text):
-    text = error_text.lower()
-
-    if "401" in text or "authentication" in text:
-        return "認証エラーだゾ。設定を見直してくれ。"
-
-    if "503" in text or "unavailable" in text:
-        return "いま混んでるゾ。少し待ってくれ。"
-
-    if "404" in text and "model" in text:
-        return "モデル設定が変だゾ。見直してくれ。"
-
-    if "400" in text or "bad request" in text:
-        return "リクエスト形式でエラーだゾ。"
-
-    return "エラーが出たゾ。"
-
-
-# -------------------
-# テキスト返信（Groq専用）
-# -------------------
 
 def ask_groq_text(user_text):
     if not groq_client:
@@ -184,11 +72,6 @@ def ask_groq_text(user_text):
 
     return response.choices[0].message.content.strip()
 
-
-# -------------------
-# 画像返信（Gemini優先）
-# -------------------
-
 def ask_gemini_image(image_bytes, mime_type):
     if not gemini_client:
         raise Exception("Gemini APIキーが未設定だゾ")
@@ -199,7 +82,7 @@ def ask_gemini_image(image_bytes, mime_type):
     )
 
     response = gemini_client.models.generate_content(
-        model="gemini-3.6-flash",
+        model="gemini-2.5-flash",
         contents=[
             IMAGE_CHARACTER_PROMPT,
             "この画像に対して自然な一言だけ返してくれ。",
@@ -209,10 +92,11 @@ def ask_gemini_image(image_bytes, mime_type):
 
     return (response.text or "").strip()
 
-
-def ask_groq_image(image_bytes, mime_type):
-    if not groq_client:
-        raise Exception("Groq APIキーが未設定だゾ")
+def ask_openrouter_image(image_bytes, mime_type):
+    if not openrouter_client:
+        raise Exception(
+            "OpenRouter APIキーが未設定だゾ"
+        )
 
     import base64
 
@@ -220,8 +104,9 @@ def ask_groq_image(image_bytes, mime_type):
         image_bytes
     ).decode("utf-8")
 
-    response = groq_client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
+    response = openrouter_client.chat.completions.create(
+        model="qwen/qwen-2.5-vl-72b-instruct",
+
         messages=[
             {
                 "role": "system",
@@ -237,7 +122,10 @@ def ask_groq_image(image_bytes, mime_type):
                     {
                         "type": "image_url",
                         "image_url": {
-                            "url": f"data:{mime_type};base64,{image_base64}"
+                            "url": (
+                                f"data:{mime_type};base64,"
+                                f"{image_base64}"
+                            )
                         }
                     }
                 ]
@@ -276,7 +164,7 @@ def generate_text_reply(user_text):
 # -------------------
 # 画像生成
 # Gemini優先
-# 枠切れ時のみGroq
+# 枠切れ時のみOpenRouter
 # -------------------
 
 def generate_image_reply(
@@ -307,7 +195,7 @@ def generate_image_reply(
             gemini_error_text
         ):
             try:
-                reply_text = ask_groq_image(
+                reply_text = ask_openrouter_image(
                     image_bytes,
                     mime_type
                 )
@@ -315,21 +203,18 @@ def generate_image_reply(
                 if reply_text:
                     return reply_text
 
-            except Exception as groq_error:
+            except Exception as openrouter_error:
 
-                groq_error_text = str(
-                    groq_error
+                openrouter_error_text = str(
+                    openrouter_error
                 )
 
                 print(
-                    f"groq image error: "
-                    f"{groq_error_text}"
+                    f"openrouter image error: "
+                    f"{openrouter_error_text}"
                 )
 
-                if is_groq_quota_error(
-                    groq_error_text
-                ):
-                    return LIMIT_MESSAGE
+                return "今ちょっと画像見れんわ"
 
         return "画像うまく見れなかったわ"
 
