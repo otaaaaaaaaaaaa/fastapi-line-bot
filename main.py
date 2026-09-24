@@ -21,6 +21,17 @@ CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN")
 CHANNEL_SECRET = os.getenv("CHANNEL_SECRET")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
+openrouter_client = (
+    OpenAI(
+        api_key=OPENROUTER_API_KEY,
+        base_url="https://openrouter.ai/api/v1"
+    )
+    if OPENROUTER_API_KEY
+    else None
+)
+
 
 line_bot_api = LineBotApi(CHANNEL_ACCESS_TOKEN)
 parser = WebhookParser(CHANNEL_SECRET)
@@ -211,9 +222,9 @@ def ask_gemini_image(image_bytes, mime_type):
     return (response.text or "").strip()
 
 
-def ask_groq_image(image_bytes, mime_type):
-    if not groq_client:
-        raise Exception("Groq APIキーが未設定だゾ")
+def ask_openrouter_image(image_bytes, mime_type):
+    if not openrouter_client:
+        raise Exception("OpenRouter APIキーが未設定だゾ")
 
     import base64
 
@@ -221,8 +232,9 @@ def ask_groq_image(image_bytes, mime_type):
         image_bytes
     ).decode("utf-8")
 
-    response = groq_client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
+    response = openrouter_client.chat.completions.create(
+        model="qwen/qwen-2.5-vl-72b-instruct",
+
         messages=[
             {
                 "role": "system",
@@ -247,6 +259,7 @@ def ask_groq_image(image_bytes, mime_type):
     )
 
     return response.choices[0].message.content.strip()
+
 
 # -------------------
 # テキスト生成
@@ -308,7 +321,7 @@ def generate_image_reply(
             gemini_error_text
         ):
             try:
-                reply_text = ask_groq_image(
+                reply_text = ask_openrouter_image(
                     image_bytes,
                     mime_type
                 )
