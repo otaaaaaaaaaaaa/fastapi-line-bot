@@ -17,6 +17,8 @@ from openai import OpenAI
 
 from prompts import TEXT_CHARACTER_PROMPT, IMAGE_CHARACTER_PROMPT
 
+import csv
+
 app = FastAPI()
 
 CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN")
@@ -55,12 +57,45 @@ groq_client = (
 
 LIMIT_MESSAGE = "いま無料枠の上限を超えたゾ。少し待ってからまた送ってくれ。"
 
+def load_fixed_replies():
+    fixed_replies = []
+
+    try:
+        with open(
+            "fixed.csv",
+            encoding="utf-8"
+        ) as f:
+
+            reader = csv.DictReader(f)
+
+            for row in reader:
+                fixed_replies.append(
+                    {
+                        "keyword": row["keyword"],
+                        "reply": row["reply"]
+                    }
+                )
+
+    except Exception as e:
+        print(
+            f"fixed.csv load error: {e}"
+        )
+
+    return fixed_replies
+
+
+FIXED_REPLIES = load_fixed_replies()
+
 
 def get_fixed_reply(user_text):
     text = user_text.strip()
 
-    if text == "釜山":
-        return "知ってたか？釜山って近くの山が釜の形に似てたことに由来するんだぜ"
+    for item in FIXED_REPLIES:
+
+        keyword = item["keyword"]
+
+        if keyword in text:
+            return item["reply"]
 
     return None
 
@@ -356,35 +391,18 @@ async def callback(
                     event.message.text.strip()
                 )
 
-                if (
-                    "くさい" in user_text
-                    or "臭い" in user_text
-                    or "くさっ" in user_text
-                    or "臭っ" in user_text
-                    or "931" in user_text
-                ):
-                    reply_text = (
-                        "もうお前よくないって〜"
-                    )
+                fixed_reply = get_fixed_reply(
+    user_text
+)
 
-                else:
+if fixed_reply:
+    reply_text = fixed_reply
 
-                    fixed_reply = (
-                        get_fixed_reply(
-                            user_text
-                        )
-                    )
+else:
+    reply_text = generate_text_reply(
+        user_text
+    )
 
-                    if fixed_reply:
-                        reply_text = (
-                            fixed_reply
-                        )
-                    else:
-                        reply_text = (
-                            generate_text_reply(
-                                user_text
-                            )
-                        )
 
                 line_bot_api.reply_message(
                     event.reply_token,
