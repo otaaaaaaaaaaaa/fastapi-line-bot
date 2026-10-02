@@ -392,17 +392,16 @@ async def callback(
                 )
 
                 fixed_reply = get_fixed_reply(
-　　　　　　　　　　　　　　　　　　　　　    user_text
-　　　　　　　　　　　　　　　　　　　　　)
+                    user_text
+                )
 
-　　　　　　　　　　　　　　　　　　　　　if fixed_reply:
-　　　　　　　　　　　　　　　　　　　　　    reply_text = fixed_reply
+                if fixed_reply:
+                    reply_text = fixed_reply
 
-　　　　　　　　　　　　　　　　　　　　　else:
-                                    reply_text = generate_text_reply(
-                                        user_text
-                                    )
-
+                else:
+                    reply_text = generate_text_reply(
+                        user_text
+                    )
 
                 line_bot_api.reply_message(
                     event.reply_token,
@@ -410,6 +409,7 @@ async def callback(
                         text=reply_text
                     )
                 )
+
 
             # -------------------
             # 画像
