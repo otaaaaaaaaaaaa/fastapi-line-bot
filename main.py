@@ -87,7 +87,62 @@ def load_fixed_replies():
     return fixed_replies
 
 
+def load_profile_csv():
+    profile = []
+
+    try:
+        with open(
+            PROFILE_CSV_PATH,
+            encoding="utf-8"
+        ) as f:
+
+            reader = csv.DictReader(f)
+
+            for row in reader:
+
+                profile.append(
+                    f"{row['項目']} : {row['値']}"
+                )
+
+    except Exception as e:
+
+        print(
+            f"profile.csv load error: {e}"
+        )
+
+    return profile
+
+
+def load_history_csv():
+    history = []
+
+    try:
+        with open(
+            HISTORY_CSV_PATH,
+            encoding="utf-8"
+        ) as f:
+
+            reader = csv.DictReader(f)
+
+            for row in reader:
+
+                history.append(
+                    f"{row['年月']} : {row['出来事']}"
+                )
+
+    except Exception as e:
+
+        print(
+            f"history.csv load error: {e}"
+        )
+
+    return history
+
+
 FIXED_REPLIES = load_fixed_replies()
+
+PROFILE_DATA = load_profile_csv()
+HISTORY_DATA = load_history_csv()
 
 
 def get_fixed_reply(user_text):
@@ -159,12 +214,30 @@ def ask_groq_text(user_text):
     if not groq_client:
         raise Exception("Groq APIキーが未設定だゾ")
 
+    profile_text = "\n".join(
+        PROFILE_DATA
+    )
+
+    history_text = "\n".join(
+        HISTORY_DATA
+    )
+
+    system_prompt = f"""
+{TEXT_CHARACTER_PROMPT}
+
+【プロフィール】
+{profile_text}
+
+【過去の出来事】
+{history_text}
+"""
+
     response = groq_client.chat.completions.create(
         model="openai/gpt-oss-20b",
         messages=[
             {
                 "role": "system",
-                "content": TEXT_CHARACTER_PROMPT
+                "content": system_prompt
             },
             {
                 "role": "user",
@@ -173,7 +246,13 @@ def ask_groq_text(user_text):
         ]
     )
 
-    return response.choices[0].message.content.strip()
+    return (
+        response
+        .choices[0]
+        .message
+        .content
+        .strip()
+    )
 
 
 # -------------------
