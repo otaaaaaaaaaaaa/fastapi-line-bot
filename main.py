@@ -222,15 +222,37 @@ def ask_groq_text(user_text):
         HISTORY_DATA
     )
 
+    print("=== PROFILE ===")
+    print(profile_text)
+    
+    print("=== HISTORY ===")
+    print(history_text)
+
+
     system_prompt = f"""
 {TEXT_CHARACTER_PROMPT}
+
+あなた自身の情報は以下である。
 
 【プロフィール】
 {profile_text}
 
 【過去の出来事】
 {history_text}
+
+プロフィールや過去の出来事に関する質問には、
+上記情報を最優先で使用すること。
+
+プロフィールに情報が存在する場合は
+必ずその情報に従うこと。
+
+プロフィールに情報が存在しない場合は、
+キャラクターとして自然な範囲で創作してよい。
+
+ただしプロフィールと矛盾する内容は
+絶対に作らないこと。
 """
+
 
     response = groq_client.chat.completions.create(
         model="openai/gpt-oss-20b",
