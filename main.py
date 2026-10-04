@@ -19,6 +19,9 @@ from prompts import TEXT_CHARACTER_PROMPT, IMAGE_CHARACTER_PROMPT
 
 import csv
 
+PROFILE_CSV_PATH = "profile.csv"
+HISTORY_CSV_PATH = "history.csv"
+
 app = FastAPI()
 
 CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN")
