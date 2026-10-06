@@ -66,7 +66,7 @@ def load_fixed_replies():
     try:
         with open(
             "fixed.csv",
-            encoding="utf-8"
+            encoding="utf-8-sig"
         ) as f:
 
             reader = csv.DictReader(f)
