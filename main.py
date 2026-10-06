@@ -19,6 +19,7 @@ from supabase import create_client
 from prompts import TEXT_CHARACTER_PROMPT, IMAGE_CHARACTER_PROMPT
 
 import csv
+import json
 
 PROFILE_CSV_PATH = "profile.csv"
 HISTORY_CSV_PATH = "history.csv"
@@ -68,6 +69,134 @@ supabase = create_client(
 )
 
 LIMIT_MESSAGE = "いま無料枠の上限を超えたゾ。少し待ってからまた送ってくれ。"
+
+def get_user_memories(user_id):
+    try:
+
+        result = (
+            supabase
+            .table("user_memories")
+            .select("*")
+            .eq("user_id", user_id)
+            .execute()
+        )
+
+        memories = []
+
+        for row in result.data:
+
+            memories.append(
+                f"{row['key']} : {row['value']}"
+            )
+
+        return "\n".join(memories)
+
+    except Exception as e:
+
+        print(
+            f"memory load error: {e}"
+        )
+
+        return ""
+
+def save_memory(
+    user_id,
+    key,
+    value
+):
+    try:
+
+        existing = (
+            supabase
+            .table("user_memories")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("key", key)
+            .execute()
+        )
+
+        if existing.data:
+
+            (
+                supabase
+                .table("user_memories")
+                .update(
+                    {
+                        "value": value
+                    }
+                )
+                .eq("user_id", user_id)
+                .eq("key", key)
+                .execute()
+            )
+
+        else:
+
+            (
+                supabase
+                .table("user_memories")
+                .insert(
+                    {
+                        "user_id": user_id,
+                        "key": key,
+                        "value": value
+                    }
+                )
+                .execute()
+            )
+
+    except Exception as e:
+
+        print(
+            f"memory save error: {e}"
+        )
+
+def extract_memory(user_text):
+
+    try:
+
+        response = groq_client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+
+            messages=[
+                {
+                    "role": "system",
+                    "content":
+                    """
+                    ユーザーの発言から
+                    記憶すべきプロフィール情報を抽出せよ。
+
+                    JSONのみ返すこと。
+
+                    例
+
+                    {"key":"部活","value":"陸上部"}
+
+                    該当なしなら
+
+                    {}
+                    """
+                },
+                {
+                    "role": "user",
+                    "content": user_text
+                }
+            ]
+        )
+
+        content = (
+            response
+            .choices[0]
+            .message
+            .content
+        )
+
+        return json.loads(content)
+
+    except Exception:
+
+        return {}
+
 
 def load_fixed_replies():
     fixed_replies = []
@@ -219,7 +348,10 @@ def make_error_reply(error_text):
 # テキスト返信（Groq専用）
 # -------------------
 
-def ask_groq_text(user_text):
+def ask_groq_text(
+    user_text,
+    user_id
+):
     if not groq_client:
         raise Exception("Groq APIキーが未設定だゾ")
 
@@ -230,6 +362,11 @@ def ask_groq_text(user_text):
     history_text = "\n".join(
         HISTORY_DATA
     )
+
+    memory_text = get_user_memories(
+    user_id
+    )
+
 
     print("=== PROFILE ===")
     print(profile_text)
@@ -248,6 +385,9 @@ def ask_groq_text(user_text):
 
 【過去の出来事】
 {history_text}
+
+【ユーザーの記憶】
+{memory_text}
 
 プロフィールや過去の出来事に関する質問には、
 上記情報を最優先で使用すること。
