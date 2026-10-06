@@ -3,3 +3,4 @@ uvicorn
 line-bot-sdk
 google-genai
 openai
+supabase
