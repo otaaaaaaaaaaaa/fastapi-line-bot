@@ -93,7 +93,7 @@ def load_profile_csv():
     try:
         with open(
             PROFILE_CSV_PATH,
-            encoding="utf-8"
+            encoding="utf-8-sig"
         ) as f:
 
             reader = csv.DictReader(f)
@@ -119,7 +119,7 @@ def load_history_csv():
     try:
         with open(
             HISTORY_CSV_PATH,
-            encoding="utf-8"
+            encoding="utf-8-sig"
         ) as f:
 
             reader = csv.DictReader(f)
