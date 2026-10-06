@@ -494,12 +494,38 @@ def ask_openrouter_image(image_bytes, mime_type):
 # テキスト生成
 # -------------------
 
-def generate_text_reply(user_text):
+def generate_text_reply(
+    user_text,
+    user_id
+):
     try:
-        return ask_groq_text(user_text)
+
+        memory = extract_memory(
+            user_text
+        )
+
+        if (
+            "key" in memory
+            and
+            "value" in memory
+        ):
+
+            save_memory(
+                user_id,
+                memory["key"],
+                memory["value"]
+            )
+
+        return ask_groq_text(
+            user_text,
+            user_id
+        )
 
     except Exception as groq_error:
-        groq_error_text = str(groq_error)
+
+        groq_error_text = str(
+            groq_error
+        )
 
         print(
             f"groq text error: "
@@ -722,6 +748,10 @@ async def callback(
                         "mime detect error: "
                         f"{mime_error}"
                     )
+
+                user_id = (
+                    event.source.user_id
+                )
 
                 reply_text = (
                     generate_image_reply(
