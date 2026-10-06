@@ -14,6 +14,7 @@ from linebot.models import (
 from google import genai
 from google.genai import types
 from openai import OpenAI
+from supabase import create_client
 
 from prompts import TEXT_CHARACTER_PROMPT, IMAGE_CHARACTER_PROMPT
 
@@ -29,6 +30,9 @@ CHANNEL_SECRET = os.getenv("CHANNEL_SECRET")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
 
 openrouter_client = (
     OpenAI(
@@ -56,6 +60,11 @@ groq_client = (
     )
     if GROQ_API_KEY
     else None
+)
+
+supabase = create_client(
+    SUPABASE_URL,
+    SUPABASE_KEY
 )
 
 LIMIT_MESSAGE = "いま無料枠の上限を超えたゾ。少し待ってからまた送ってくれ。"
