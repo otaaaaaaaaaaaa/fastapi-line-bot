@@ -678,9 +678,16 @@ async def callback(
                     reply_text = fixed_reply
 
                 else:
-                    reply_text = generate_text_reply(
-                        user_text
+
+                    user_id = (
+                        event.source.user_id
                     )
+
+                    reply_text = generate_text_reply(
+                        user_text,
+                        user_id
+                    )
+
 
                 line_bot_api.reply_message(
                     event.reply_token,
